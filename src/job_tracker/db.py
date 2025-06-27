@@ -14,6 +14,15 @@ def init_database(db_path):
                is_active BOOLEAN DEFAULT TRUE
                     )
             ''')
+
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS subscribers (
+                user_id INTEGER PRIMARY KEY,     -- Telegram user ID
+                first_name TEXT,                 -- User's first name
+                subscribed_date DATE NOT NULL    -- When they subscribed
+            )
+        ''')
+
         conn.commit()
 
 def save_jobs(db_path, jobs):
@@ -118,3 +127,82 @@ def update_discovery_date_by_url(db_path, job_url, new_date):
         else:
             print(f"Job with URL '{job_url}' not found")
             return False
+
+def subscribe_user(db_path, user_id, first_name):
+    """
+    Subscribe a user to notifications
+
+    Args:
+        db_path: Path to the database
+        user_id: Telegram user ID
+        first_name: User's first name
+
+    Returns:
+        bool: True if newly subscribed, False if already subscribed
+    """
+    current_date = datetime.now().date()
+
+    with sqlite3.connect(db_path) as conn:
+        cursor = conn.cursor()
+
+        # Check if already subscribed
+        cursor.execute("SELECT user_id FROM subscribers WHERE user_id = ?", (user_id,))
+        if cursor.fetchone():
+            return False  # Already subscribed
+
+        # Add new subscriber
+        cursor.execute('''
+                       INSERT INTO subscribers (user_id, first_name, subscribed_date)
+                       VALUES (?, ?, ?)
+                       ''', (user_id, first_name, current_date))
+
+        conn.commit()
+        return True
+
+def unsubscribe_user(db_path, user_id):
+    """
+    Unsubscribe a user from notifications
+
+    Args:
+        db_path: Path to the database
+        user_id: Telegram user ID
+
+    Returns:
+        bool: True if unsubscribed, False if wasn't subscribed
+    """
+    with sqlite3.connect(db_path) as conn:
+        cursor = conn.cursor()
+
+        # Remove subscriber
+        cursor.execute("DELETE FROM subscribers WHERE user_id = ?", (user_id,))
+
+        conn.commit()
+        return cursor.rowcount > 0  # True if a row was deleted
+
+def get_subscribers(db_path):
+    """
+    Get list of all subscribed user IDs
+
+    Returns:
+        list: List of user IDs that are subscribed
+    """
+    with sqlite3.connect(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT user_id FROM subscribers")
+        return [row[0] for row in cursor.fetchall()]
+
+def is_subscribed(db_path, user_id):
+    """
+    Check if a user is subscribed
+
+    Args:
+        db_path: Path to the database
+        user_id: Telegram user ID
+
+    Returns:
+        bool: True if subscribed, False otherwise
+    """
+    with sqlite3.connect(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT user_id FROM subscribers WHERE user_id = ?", (user_id,))
+        return cursor.fetchone() is not None
