@@ -1,29 +1,60 @@
 import sqlite3
+import os
 from datetime import datetime
+from pathlib import Path
 
 def init_database(db_path):
-    with sqlite3.connect(db_path) as conn:
-        cursor = conn.cursor()
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS jobs (
-               id INTEGER PRIMARY KEY AUTOINCREMENT,
-               name TEXT NOT NULL,
-               url TEXT NOT NULL UNIQUE,
-               first_seen DATE NOT NULL,
-               last_seen DATE NOT NULL,
-               is_active BOOLEAN DEFAULT TRUE
-                    )
+    """
+    Initialize the SQLite database and create tables
+    Creates directory structure if it doesn't exist
+    """
+    try:
+        # Create directory if it doesn't exist
+        db_dir = os.path.dirname(db_path)
+        if db_dir:  # Only create if there's a directory path
+            Path(db_dir).mkdir(parents=True, exist_ok=True)
+            print(f"✅ Database directory ensured: {db_dir}")
+
+        # Test if we can write to the directory
+        if db_dir and not os.access(db_dir, os.W_OK):
+            print(f"❌ No write permission for directory: {db_dir}")
+            # Fall back to current directory
+            db_path = os.path.basename(db_path)
+            print(f"📁 Falling back to current directory: {db_path}")
+
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+
+            # Jobs table (existing)
+            cursor.execute('''
+               CREATE TABLE IF NOT EXISTS jobs (
+                   id INTEGER PRIMARY KEY AUTOINCREMENT,
+                   name TEXT NOT NULL,
+                   url TEXT NOT NULL UNIQUE,
+                   first_seen DATE NOT NULL,
+                   last_seen DATE NOT NULL,
+                   is_active BOOLEAN DEFAULT TRUE
+               )
+           ''')
+
+            # Subscribers table (minimal)
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS subscribers (
+                    user_id INTEGER PRIMARY KEY,
+                    first_name TEXT,
+                    subscribed_date DATE NOT NULL
+                )
             ''')
 
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS subscribers (
-                user_id INTEGER PRIMARY KEY,     -- Telegram user ID
-                first_name TEXT,                 -- User's first name
-                subscribed_date DATE NOT NULL    -- When they subscribed
-            )
-        ''')
+            conn.commit()
+            print(f"✅ Database initialized successfully: {db_path}")
 
-        conn.commit()
+    except sqlite3.Error as e:
+        print(f"❌ Database error: {e}")
+        raise
+    except Exception as e:
+        print(f"❌ Unexpected error initializing database: {e}")
+        raise
 
 def save_jobs(db_path, jobs):
     current_date = datetime.now().date()
