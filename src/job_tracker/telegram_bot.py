@@ -14,8 +14,19 @@ class TelegramBot:
     def __init__(self, token, db_path):
         self.token = token
         self.db_path = db_path
-        self.app = ApplicationBuilder().token(token).build()
-        self.bot = Bot(token)
+
+        # Configure connection pool
+        request = HTTPXRequest(
+            connection_pool_size=40,
+            pool_timeout=30.0,
+            read_timeout=30.0,
+            write_timeout=30.0,
+            connect_timeout=30.0
+        )
+    
+        self.bot = Bot(token=token, request=request)
+        self.app = ApplicationBuilder().token(token).request(request).build()
+        
 
         # Use BackgroundScheduler with timezone
         self.scheduler = BackgroundScheduler(timezone=pytz.timezone("Europe/Zurich"))
